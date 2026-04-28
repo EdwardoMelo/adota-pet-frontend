@@ -2,7 +2,8 @@ import { Link } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "./StatusBadge";
 import type { PetResponseDTO } from "@/dtos";
-import { Cat, Dog, Sparkles } from "lucide-react";
+import { Cat, Dog, MapPin, Sparkles } from "lucide-react";
+import { formatAddressInline } from "@/lib/address";
 
 const speciesIcon = { dog: Dog, cat: Cat, other: Sparkles } as const;
 
@@ -39,6 +40,14 @@ export function PetCard({ pet, to }: { pet: PetResponseDTO; to: string }) {
             {pet.age} {pet.age === 1 ? "ano" : "anos"}
           </p>
           <p className="mt-3 line-clamp-2 text-sm text-muted-foreground">{pet.description}</p>
+          {pet.tenant && (
+            <p className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground">
+              <MapPin className="h-3 w-3 shrink-0" />
+              <span className="line-clamp-1">
+                {pet.tenant.name} • {formatAddressInline(pet.tenant.address)}
+              </span>
+            </p>
+          )}
         </div>
       </Card>
     </Link>

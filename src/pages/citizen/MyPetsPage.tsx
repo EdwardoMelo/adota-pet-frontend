@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { userPetService } from "@/services";
 import type { UserPetResponseDTO, UserPetType } from "@/dtos";
@@ -30,6 +31,7 @@ const empty = {
   name: "",
   age: 1,
   type: "dog" as UserPetType,
+  imageUrl: "",
   notes: "",
 };
 
@@ -38,6 +40,7 @@ const typeLabel = { dog: "Cão", cat: "Gato", other: "Outro" } as const;
 
 export default function MyPetsPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [pets, setPets] = useState<UserPetResponseDTO[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
@@ -65,7 +68,13 @@ export default function MyPetsPage() {
 
   function openEdit(p: UserPetResponseDTO) {
     setEditing(p);
-    setForm({ name: p.name, age: p.age, type: p.type, notes: p.notes ?? "" });
+    setForm({
+      name: p.name,
+      age: p.age,
+      type: p.type,
+      imageUrl: p.imageUrl ?? "",
+      notes: p.notes ?? "",
+    });
     setOpen(true);
   }
 
@@ -79,6 +88,7 @@ export default function MyPetsPage() {
           name: form.name,
           age: form.age,
           type: form.type,
+          imageUrl: form.imageUrl || undefined,
           notes: form.notes || undefined,
         });
         toast.success("Pet atualizado.");
@@ -88,6 +98,7 @@ export default function MyPetsPage() {
           name: form.name,
           age: form.age,
           type: form.type,
+          imageUrl: form.imageUrl || undefined,
           notes: form.notes || undefined,
         });
         toast.success("Pet cadastrado.");
@@ -169,6 +180,14 @@ export default function MyPetsPage() {
                   </div>
                   <div className="flex items-center gap-1">
                     <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => navigate(`/appointments/new?userPetId=${p.id}`)}
+                      className="rounded-full"
+                    >
+                      Novo procedimento
+                    </Button>
+                    <Button
                       size="icon"
                       variant="ghost"
                       onClick={() => openEdit(p)}
@@ -237,6 +256,16 @@ export default function MyPetsPage() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="imageUrl">URL da imagem</Label>
+              <Input
+                id="imageUrl"
+                type="text"
+                value={form.imageUrl}
+                onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
+                placeholder="https://..."
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="notes">Observações</Label>

@@ -47,7 +47,11 @@ export default function PetDetailPage() {
   }
 
   async function handleCreateAdoption() {
-    if (!user) return;
+    if (!user) {
+      toast.info("Faça login para solicitar adoção.");
+      navigate("/login");
+      return;
+    }
     const confirmed = window.confirm(
       "Se você prosseguir, o abrigo irá prosseguir com a preparação do pet para sua chegada, confirma que deseja prosseguir com a adoção?",
     );
@@ -68,6 +72,15 @@ export default function PetDetailPage() {
     } finally {
       setSubmittingAdoption(false);
     }
+  }
+
+  function handleVisitClick() {
+    if (!user) {
+      toast.info("Faça login para agendar uma visita.");
+      navigate("/login");
+      return;
+    }
+    navigate(`/appointments/visit/${pet.id}`);
   }
 
   return (
@@ -113,9 +126,7 @@ export default function PetDetailPage() {
             <Button
               size="lg"
               disabled={pet.status !== "available"}
-              onClick={() =>
-                navigate(`/appointments/new?tenantId=${pet.tenantId}&procedure=visit`)
-              }
+              onClick={handleVisitClick}
               className="rounded-full bg-accent text-accent-foreground shadow-warm hover:bg-accent/90"
             >
               <CalendarPlus className="mr-2 h-4 w-4" />

@@ -22,6 +22,7 @@ import { CalendarClock, Loader2, MapPin, Plus, Stethoscope } from "lucide-react"
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
+import { formatAddressInline } from "@/lib/address";
 
 const statusTone = {
   scheduled: "accent",
@@ -145,9 +146,14 @@ export default function MyAppointmentsPage() {
                         })}
                       </p>
                       {tenant && (
-                        <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
-                          <MapPin className="h-3 w-3" /> {tenant.name}
-                        </p>
+                        <>
+                          <p className="mt-0.5 text-xs font-medium text-muted-foreground">
+                            {tenant.name}
+                          </p>
+                          <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+                            <MapPin className="h-3 w-3" /> {formatAddressInline(tenant.address)}
+                          </p>
+                        </>
                       )}
                       {pet && (
                         <p className="text-xs text-muted-foreground">Pet: {pet.name}</p>

@@ -16,7 +16,16 @@ export interface AdminRegisterTicketResponseDTO {
       name: string;
       cnpj?: string | null;
       contact: string;
-      address: string;
+      address:
+        | {
+            street: string;
+            city: string;
+            state: string;
+            zipCode: string;
+            number: string;
+            apartment?: string | null;
+          }
+        | string;
       email: string;
     };
   };

@@ -38,6 +38,22 @@ export const appointmentService = {
     }
   },
 
+  async createVisit(dto: {
+    tenantId: string;
+    userId: string;
+    procedureId: string;
+    petId: string;
+    scheduledAt: string;
+    notes?: string;
+  }): Promise<AppointmentResponseDTO> {
+    try {
+      const { data } = await api.post<AppointmentResponseDTO>("/appointments/visit", dto);
+      return data;
+    } catch (error) {
+      return dispatchApiError(error);
+    }
+  },
+
   async update(
     id: string,
     dto: UpdateAppointmentDTO,

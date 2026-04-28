@@ -12,6 +12,7 @@ import { AppLayout } from "@/components/AppLayout";
 import PetsPage from "./pages/citizen/PetsPage";
 import PetDetailPage from "./pages/citizen/PetDetailPage";
 import NewAppointmentPage from "./pages/citizen/NewAppointmentPage";
+import NewPetVisitPage from "./pages/citizen/NewPetVisitPage";
 import MyAppointmentsPage from "./pages/citizen/MyAppointmentsPage";
 import MyAdoptionsPage from "./pages/citizen/MyAdoptionsPage";
 import MyPetsPage from "./pages/citizen/MyPetsPage";
@@ -40,6 +41,12 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<LoginPage />} />
 
+            {/* Public catalog */}
+            <Route element={<AppLayout />}>
+              <Route path="/pets" element={<PetsPage />} />
+              <Route path="/pets/:id" element={<PetDetailPage />} />
+            </Route>
+
             {/* Citizen */}
             <Route
               element={
@@ -48,11 +55,10 @@ const App = () => (
                 </ProtectedRoute>
               }
             >
-              <Route path="/pets" element={<PetsPage />} />
-              <Route path="/pets/:id" element={<PetDetailPage />} />
               <Route path="/appointments" element={<MyAppointmentsPage />} />
               <Route path="/adoptions" element={<MyAdoptionsPage />} />
               <Route path="/appointments/new" element={<NewAppointmentPage />} />
+              <Route path="/appointments/visit/:petId" element={<NewPetVisitPage />} />
               <Route path="/my-pets" element={<MyPetsPage />} />
             </Route>
 

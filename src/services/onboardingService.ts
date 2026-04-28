@@ -10,11 +10,19 @@ export interface CreateCitizenDTO {
 export interface CreateAdminRegisterTicketDTO {
   name: string;
   email: string;
+  password: string;
   shelter: {
     name: string;
     cnpj?: string;
     contact: string;
-    address: string;
+    address: {
+      street: string;
+      city: string;
+      state: string;
+      zipCode: string;
+      number: string;
+      apartment?: string;
+    };
     email: string;
   };
 }

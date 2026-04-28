@@ -7,6 +7,7 @@ export interface UserPetResponseDTO {
   name: string;
   age: number;
   type: UserPetType;
+  imageUrl?: string;
   notes?: string;
   createdAt: string;
 }
@@ -16,6 +17,7 @@ export interface CreateUserPetDTO {
   name: string;
   age: number;
   type: UserPetType;
+  imageUrl?: string;
   notes?: string;
 }
 
@@ -23,5 +25,6 @@ export interface UpdateUserPetDTO {
   name?: string;
   age?: number;
   type?: UserPetType;
+  imageUrl?: string;
   notes?: string;
 }

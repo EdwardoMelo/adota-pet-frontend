@@ -5,6 +5,18 @@ export type PetSpecies = "dog" | "cat" | "other";
 export interface ShelterPetResponseDTO {
   id: string;
   tenantId: string;
+  tenant?: {
+    id: string;
+    name: string;
+    address: {
+      street: string;
+      city: string;
+      state: string;
+      zipCode: string;
+      number: string;
+      apartment?: string | null;
+    };
+  };
   name: string;
   age: number;
   species: PetSpecies;

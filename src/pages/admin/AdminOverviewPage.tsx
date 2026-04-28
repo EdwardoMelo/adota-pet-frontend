@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Building2, CalendarClock, Loader2, PawPrint, Users } from "lucide-react";
 import type { TenantResponseDTO } from "@/dtos";
+import { formatAddressInline } from "@/lib/address";
 
 const subTone = {
   active: "success",
@@ -96,7 +97,7 @@ export default function AdminOverviewPage() {
                   >
                     <div>
                       <p className="text-sm font-semibold">{t.name}</p>
-                      <p className="text-xs text-muted-foreground">{t.city}</p>
+                      <p className="text-xs text-muted-foreground">{formatAddressInline(t.address)}</p>
                     </div>
                     <StatusBadge
                       label={subLabel[t.subscriptionStatus]}

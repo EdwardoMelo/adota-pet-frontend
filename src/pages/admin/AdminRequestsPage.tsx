@@ -13,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { formatAddressInline } from "@/lib/address";
 
 const statusTone = {
   pending: "warning",
@@ -179,7 +180,7 @@ export default function AdminRequestsPage() {
                   <p>Nome: {selected.payload.shelter?.name ?? "—"}</p>
                   <p>CNPJ: {selected.payload.shelter?.cnpj ?? "—"}</p>
                   <p>Contato: {selected.payload.shelter?.contact ?? "—"}</p>
-                  <p>Endereço: {selected.payload.shelter?.address ?? "—"}</p>
+                  <p>Endereço: {formatTicketAddress(selected.payload.shelter?.address)}</p>
                   <p>E-mail: {selected.payload.shelter?.email ?? "—"}</p>
                 </div>
               </div>
@@ -195,4 +196,22 @@ export default function AdminRequestsPage() {
       </Dialog>
     </>
   );
+}
+
+function formatTicketAddress(
+  address:
+    | {
+        street: string;
+        city: string;
+        state: string;
+        zipCode: string;
+        number: string;
+        apartment?: string | null;
+      }
+    | string
+    | undefined,
+) {
+  if (!address) return "—";
+  if (typeof address === "string") return address;
+  return formatAddressInline(address) || "—";
 }

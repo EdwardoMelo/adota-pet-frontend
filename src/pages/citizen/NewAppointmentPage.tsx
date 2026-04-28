@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/select";
 import { Clock, Loader2, MapPin } from "lucide-react";
 import { toast } from "sonner";
+import { formatAddressInline } from "@/lib/address";
 
 export default function NewAppointmentPage() {
   const { user } = useAuth();
@@ -37,19 +38,30 @@ export default function NewAppointmentPage() {
   const [tenants, setTenants] = useState<TenantResponseDTO[]>([]);
   const [procedures, setProcedures] = useState<ProcedureResponseDTO[]>([]);
   const [userPets, setUserPets] = useState<UserPetResponseDTO[]>([]);
+  const requestedUserPetId = params.get("userPetId");
 
   const [tenantId, setTenantId] = useState<string>(params.get("tenantId") ?? "");
   const [procedureId, setProcedureId] = useState<string>("");
-  const [userPetId, setUserPetId] = useState<string>("none");
+  const [userPetId, setUserPetId] = useState<string>(requestedUserPetId ?? "");
   const [scheduledAt, setScheduledAt] = useState("");
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [loadingProcs, setLoadingProcs] = useState(false);
+  const [creatingDefaultVisit, setCreatingDefaultVisit] = useState(false);
 
   useEffect(() => {
     tenantService.getAll().then(setTenants);
-    if (user) userPetService.getByUser(user.id).then(setUserPets);
-  }, [user]);
+    if (!user) return;
+    userPetService.getByUser(user.id).then((pets) => {
+      setUserPets(pets);
+      if (!pets.length) return;
+      if (requestedUserPetId && pets.some((p) => p.id === requestedUserPetId)) {
+        setUserPetId(requestedUserPetId);
+        return;
+      }
+      setUserPetId((current) => current || pets[0].id);
+    });
+  }, [user, requestedUserPetId]);
 
   useEffect(() => {
     setProcedureId("");
@@ -60,10 +72,34 @@ export default function NewAppointmentPage() {
     setLoadingProcs(true);
     procedureService
       .getActiveByTenant(tenantId)
-      .then((list) => {
-        setProcedures(list);
+      .then(async (list) => {
+        let nextProcedures = list;
+        setProcedures(nextProcedures);
+
         if (requestedProcedure === "visit") {
-          const visitProcedure = list.find((p) => /visita/i.test(p.name));
+          let visitProcedure = nextProcedures.find((p) => /visita|visita ao pet|visit/i.test(p.name));
+
+          if (!visitProcedure) {
+            try {
+              setCreatingDefaultVisit(true);
+              visitProcedure = await procedureService.create({
+                tenantId,
+                name: "Visita",
+                description:
+                  "Momento especial para conhecer o pet com calma, criar conexao e tirar duvidas com a equipe do abrigo.",
+                durationMinutes: 30,
+                isActive: true,
+              });
+              nextProcedures = [visitProcedure, ...nextProcedures];
+              setProcedures(nextProcedures);
+              toast.success("Procedimento padrao 'Visita' criado para este abrigo.");
+            } catch {
+              toast.error("Nao foi possivel criar o procedimento padrao de visita.");
+            } finally {
+              setCreatingDefaultVisit(false);
+            }
+          }
+
           if (visitProcedure) setProcedureId(visitProcedure.id);
         }
       })
@@ -84,8 +120,10 @@ export default function NewAppointmentPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!user) return;
+    if (!userPets.length) return toast.error("Cadastre um pet antes de agendar um procedimento.");
     if (!tenantId) return toast.error("Escolha um canil.");
     if (!procedureId) return toast.error("Escolha um procedimento.");
+    if (!userPetId) return toast.error("Escolha um pet cadastrado.");
     if (!scheduledAt) return toast.error("Escolha uma data e horário.");
 
     try {
@@ -94,7 +132,7 @@ export default function NewAppointmentPage() {
         tenantId,
         userId: user.id,
         procedureId,
-        userPetId: userPetId === "none" ? null : userPetId,
+        userPetId,
         scheduledAt: new Date(scheduledAt).toISOString(),
         notes: notes || undefined,
       });
@@ -125,7 +163,7 @@ export default function NewAppointmentPage() {
                 <SelectContent>
                   {tenants.map((t) => (
                     <SelectItem key={t.id} value={t.id}>
-                      {t.name} • {t.city}
+                      {t.name} • {formatAddressInline(t.address)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -137,14 +175,14 @@ export default function NewAppointmentPage() {
               <Select
                 value={procedureId}
                 onValueChange={setProcedureId}
-                disabled={!tenantId || loadingProcs}
+                disabled={!tenantId || loadingProcs || creatingDefaultVisit}
               >
                 <SelectTrigger className="rounded-xl">
                   <SelectValue
                     placeholder={
                       !tenantId
                         ? "Selecione um canil primeiro"
-                        : loadingProcs
+                        : loadingProcs || creatingDefaultVisit
                         ? "Carregando..."
                         : procedures.length === 0
                         ? "Sem procedimentos disponíveis"
@@ -175,7 +213,7 @@ export default function NewAppointmentPage() {
 
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label>Seu pet (opcional)</Label>
+                <Label>Seu pet</Label>
                 <Button
                   asChild
                   type="button"
@@ -188,10 +226,13 @@ export default function NewAppointmentPage() {
               </div>
               <Select value={userPetId} onValueChange={setUserPetId}>
                 <SelectTrigger className="rounded-xl">
-                  <SelectValue placeholder="Selecione um pet" />
+                  <SelectValue
+                    placeholder={
+                      userPets.length ? "Selecione um pet" : "Cadastre um pet para continuar"
+                    }
+                  />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Sem pet específico</SelectItem>
                   {userPets.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
                       {p.name} • {p.age} {p.age === 1 ? "ano" : "anos"}
@@ -201,7 +242,7 @@ export default function NewAppointmentPage() {
               </Select>
               {userPets.length === 0 && (
                 <p className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <MapPin className="h-3 w-3" /> Você ainda não cadastrou nenhum pet.
+                  <MapPin className="h-3 w-3" /> Você ainda não cadastrou nenhum pet para agendar.
                 </p>
               )}
             </div>
@@ -241,7 +282,7 @@ export default function NewAppointmentPage() {
               </Button>
               <Button
                 type="submit"
-                disabled={submitting}
+                disabled={submitting || !userPets.length}
                 className="rounded-full bg-accent text-accent-foreground hover:bg-accent/90"
               >
                 {submitting ? (

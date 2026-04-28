@@ -23,6 +23,7 @@ import {
 import { StatusBadge } from "@/components/StatusBadge";
 import { Loader2, Pencil, Plus } from "lucide-react";
 import { toast } from "sonner";
+import { emptyAddress, formatAddressInline, normalizeAddress, validateAddress } from "@/lib/address";
 
 const subTone = {
   active: "success",
@@ -40,7 +41,7 @@ const subLabel = {
 
 const empty = {
   name: "",
-  city: "",
+  address: { ...emptyAddress },
   subscriptionStatus: "trialing" as SubscriptionStatus,
 };
 
@@ -70,7 +71,7 @@ export default function AdminTenantsPage() {
     setEditing(t);
     setForm({
       name: t.name,
-      city: t.city,
+      address: normalizeAddress(t.address),
       subscriptionStatus: t.subscriptionStatus,
     });
     setOpen(true);
@@ -78,6 +79,11 @@ export default function AdminTenantsPage() {
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
+    const addressError = validateAddress(form.address);
+    if (addressError) {
+      toast.error(addressError);
+      return;
+    }
     try {
       setSaving(true);
       if (editing) {
@@ -126,7 +132,7 @@ export default function AdminTenantsPage() {
                 <div>
                   <p className="font-display text-base font-bold">{t.name}</p>
                   <p className="text-xs text-muted-foreground">
-                    {t.city} • Stripe: {t.stripeAccountId ?? "—"}
+                    {formatAddressInline(t.address)} • Stripe: {t.stripeAccountId ?? "—"}
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -166,12 +172,72 @@ export default function AdminTenantsPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Cidade</Label>
-              <Input
-                required
-                value={form.city}
-                onChange={(e) => setForm({ ...form, city: e.target.value })}
-              />
+              <Label>Endereço do canil</Label>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Input
+                  placeholder="Rua / Avenida"
+                  value={form.address.street}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      address: { ...form.address, street: e.target.value },
+                    })
+                  }
+                />
+                <Input
+                  placeholder="Número"
+                  value={form.address.number}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      address: { ...form.address, number: e.target.value },
+                    })
+                  }
+                />
+                <Input
+                  placeholder="Apartamento / complemento (opcional)"
+                  value={form.address.apartment ?? ""}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      address: { ...form.address, apartment: e.target.value },
+                    })
+                  }
+                />
+                <Input
+                  placeholder="CEP (somente números)"
+                  value={form.address.zipCode}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      address: {
+                        ...form.address,
+                        zipCode: e.target.value.replace(/\D/g, "").slice(0, 8),
+                      },
+                    })
+                  }
+                />
+                <Input
+                  placeholder="Cidade"
+                  value={form.address.city}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      address: { ...form.address, city: e.target.value },
+                    })
+                  }
+                />
+                <Input
+                  placeholder="Estado (UF)"
+                  value={form.address.state}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      address: { ...form.address, state: e.target.value.toUpperCase() },
+                    })
+                  }
+                />
+              </div>
             </div>
             <div className="space-y-2">
               <Label>Status da assinatura</Label>

@@ -9,3 +9,5 @@ export { adoptionService } from "./adoptionService";
 export { onboardingService } from "./onboardingService";
 export { authService } from "./authService";
 export { adminRegisterTicketService } from "./adminRegisterTicketService";
+export { default as firebaseApp } from "./firebaseConfig";
+export { default as FirebaseService } from "./firebaseService";

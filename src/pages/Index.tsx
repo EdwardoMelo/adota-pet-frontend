@@ -1,15 +1,18 @@
 import { Link } from "react-router-dom";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { onboardingService } from "@/services";
+import { onboardingService, petService } from "@/services";
+import type { PetResponseDTO } from "@/dtos";
+import { emptyAddress, validateAddress } from "@/lib/address";
 import { homeForRole } from "@/lib/roleRoutes";
+import { PetCard } from "@/components/PetCard";
 import { toast } from "sonner";
-import { ArrowRight, Calendar, HeartHandshake, PawPrint, Search, ShieldCheck } from "lucide-react";
+import { ArrowRight, Calendar, HeartHandshake, Loader2, PawPrint, Search, ShieldCheck } from "lucide-react";
 import heroPet from "@/assets/hero-pet.jpg";
 
 const features = [
@@ -44,12 +47,23 @@ const Index = () => {
   const [shelterForm, setShelterForm] = useState({
     name: "",
     email: "",
+    password: "",
+    confirmPassword: "",
     shelterName: "",
     cnpj: "",
     contact: "",
-    address: "",
+    address: { ...emptyAddress },
     shelterEmail: "",
   });
+  const [featuredPets, setFeaturedPets] = useState<PetResponseDTO[]>([]);
+  const [loadingFeaturedPets, setLoadingFeaturedPets] = useState(true);
+
+  useEffect(() => {
+    petService
+      .getAvailable()
+      .then((pets) => setFeaturedPets(pets.slice(0, 6)))
+      .finally(() => setLoadingFeaturedPets(false));
+  }, []);
 
   async function handleCitizenSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -78,11 +92,25 @@ const Index = () => {
 
   async function handleShelterSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (shelterForm.password.length < 6) {
+      toast.error("A senha do responsável deve ter no mínimo 6 caracteres.");
+      return;
+    }
+    if (shelterForm.password !== shelterForm.confirmPassword) {
+      toast.error("As senhas do responsável não conferem.");
+      return;
+    }
+    const addressError = validateAddress(shelterForm.address);
+    if (addressError) {
+      toast.error(addressError);
+      return;
+    }
     try {
       setShelterSubmitting(true);
       await onboardingService.createAdminRegisterTicket({
         name: shelterForm.name,
         email: shelterForm.email,
+        password: shelterForm.password,
         shelter: {
           name: shelterForm.shelterName,
           cnpj: shelterForm.cnpj || undefined,
@@ -97,10 +125,12 @@ const Index = () => {
       setShelterForm({
         name: "",
         email: "",
+        password: "",
+        confirmPassword: "",
         shelterName: "",
         cnpj: "",
         contact: "",
-        address: "",
+        address: { ...emptyAddress },
         shelterEmail: "",
       });
     } finally {
@@ -216,6 +246,36 @@ const Index = () => {
         </div>
       </section>
 
+      <section className="container mx-auto px-6 pb-20">
+        <div className="mb-8 flex items-end justify-between gap-4">
+          <div>
+            <h2 className="font-display text-3xl font-bold text-foreground">Animais disponíveis agora</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Conheça alguns pets que estão esperando por um lar cheio de carinho.
+            </p>
+          </div>
+          <Button asChild variant="outline" className="rounded-full">
+            <Link to="/pets">Ver todos</Link>
+          </Button>
+        </div>
+
+        {loadingFeaturedPets ? (
+          <div className="flex min-h-32 items-center justify-center">
+            <Loader2 className="h-7 w-7 animate-spin text-accent" />
+          </div>
+        ) : featuredPets.length === 0 ? (
+          <Card className="border-border/60 p-8 text-center text-sm text-muted-foreground">
+            No momento não há pets disponíveis para adoção.
+          </Card>
+        ) : (
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {featuredPets.map((pet) => (
+              <PetCard key={pet.id} pet={pet} to={`/pets/${pet.id}`} />
+            ))}
+          </div>
+        )}
+      </section>
+
       {/* CTA */}
       <section id="onboarding" className="container mx-auto px-6 pb-10">
         <div className="mb-8 text-center">
@@ -328,6 +388,39 @@ const Index = () => {
                   />
                 </div>
               </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="shelter-user-password">Senha de acesso</Label>
+                  <Input
+                    id="shelter-user-password"
+                    type="password"
+                    required
+                    minLength={6}
+                    autoComplete="new-password"
+                    value={shelterForm.password}
+                    onChange={(e) =>
+                      setShelterForm((prev) => ({ ...prev, password: e.target.value }))
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="shelter-user-confirm-password">Confirmar senha</Label>
+                  <Input
+                    id="shelter-user-confirm-password"
+                    type="password"
+                    required
+                    minLength={6}
+                    autoComplete="new-password"
+                    value={shelterForm.confirmPassword}
+                    onChange={(e) =>
+                      setShelterForm((prev) => ({
+                        ...prev,
+                        confirmPassword: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="shelter-name">Nome da entidade</Label>
                 <Input
@@ -366,15 +459,72 @@ const Index = () => {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="shelter-address">Endereço</Label>
-                <Input
-                  id="shelter-address"
-                  required
-                  value={shelterForm.address}
-                  onChange={(e) =>
-                    setShelterForm((prev) => ({ ...prev, address: e.target.value }))
-                  }
-                />
+                <Label>Endereço do canil</Label>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Input
+                    placeholder="Rua / Avenida"
+                    value={shelterForm.address.street}
+                    onChange={(e) =>
+                      setShelterForm((prev) => ({
+                        ...prev,
+                        address: { ...prev.address, street: e.target.value },
+                      }))
+                    }
+                  />
+                  <Input
+                    placeholder="Número"
+                    value={shelterForm.address.number}
+                    onChange={(e) =>
+                      setShelterForm((prev) => ({
+                        ...prev,
+                        address: { ...prev.address, number: e.target.value },
+                      }))
+                    }
+                  />
+                  <Input
+                    placeholder="Apartamento / complemento (opcional)"
+                    value={shelterForm.address.apartment ?? ""}
+                    onChange={(e) =>
+                      setShelterForm((prev) => ({
+                        ...prev,
+                        address: { ...prev.address, apartment: e.target.value },
+                      }))
+                    }
+                  />
+                  <Input
+                    placeholder="CEP (somente números)"
+                    value={shelterForm.address.zipCode}
+                    onChange={(e) =>
+                      setShelterForm((prev) => ({
+                        ...prev,
+                        address: {
+                          ...prev.address,
+                          zipCode: e.target.value.replace(/\D/g, "").slice(0, 8),
+                        },
+                      }))
+                    }
+                  />
+                  <Input
+                    placeholder="Cidade"
+                    value={shelterForm.address.city}
+                    onChange={(e) =>
+                      setShelterForm((prev) => ({
+                        ...prev,
+                        address: { ...prev.address, city: e.target.value },
+                      }))
+                    }
+                  />
+                  <Input
+                    placeholder="Estado (UF)"
+                    value={shelterForm.address.state}
+                    onChange={(e) =>
+                      setShelterForm((prev) => ({
+                        ...prev,
+                        address: { ...prev.address, state: e.target.value.toUpperCase() },
+                      }))
+                    }
+                  />
+                </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="shelter-email">E-mail institucional</Label>

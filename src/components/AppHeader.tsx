@@ -27,8 +27,12 @@ export function AppHeader() {
   const [allUsers, setAllUsers] = useState<UserResponseDTO[]>([]);
 
   useEffect(() => {
-    userService.getAll().then(setAllUsers);
-  }, []);
+    if (!user) {
+      setAllUsers([]);
+      return;
+    }
+    userService.getAll().then(setAllUsers).catch(() => setAllUsers([]));
+  }, [user]);
 
   const navItems = (() => {
     if (!user) return [];
