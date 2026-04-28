@@ -1,0 +1,119 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* AdotaPet — "Sun-Worn Charm" design system.
+   Warm, community-focused. All colors HSL. */
+
+@import url('https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700;900&family=Open+Sans:wght@400;500;600;700&display=swap');
+
+@layer base {
+  :root {
+    /* Brand */
+    --background: 36 38% 96%;            /* creamy off-white #F8F5F0 */
+    --foreground: 28 32% 18%;            /* rich earthy brown #3D2F20 */
+
+    --card: 0 0% 100%;
+    --card-foreground: 28 32% 18%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 28 32% 18%;
+
+    /* Primary = warm wood */
+    --primary: 28 32% 18%;
+    --primary-foreground: 36 38% 96%;
+
+    /* Secondary = sun-bleached wood */
+    --secondary: 30 38% 85%;             /* #E9D8C6 */
+    --secondary-foreground: 28 32% 18%;
+
+    --muted: 32 30% 92%;
+    --muted-foreground: 28 18% 38%;
+
+    /* Accent = warm orange */
+    --accent: 24 84% 68%;                /* #F2A36A */
+    --accent-foreground: 36 40% 98%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 36 38% 96%;
+
+    --border: 30 28% 82%;
+    --input: 30 28% 82%;
+    --ring: 24 84% 60%;
+
+    --radius: 0.85rem;
+
+    /* Tokens */
+    --brand-base: 30 38% 85%;
+    --brand-base-strong: 30 35% 78%;
+    --brand-cream: 36 38% 96%;
+    --accent-soft: 24 90% 90%;
+
+    --gradient-warm: linear-gradient(135deg, hsl(30 38% 85%), hsl(36 38% 96%));
+    --gradient-accent: linear-gradient(135deg, hsl(24 84% 68%), hsl(18 78% 58%));
+    --gradient-hero: radial-gradient(ellipse at top right, hsl(24 90% 90% / 0.7), transparent 60%),
+                     linear-gradient(180deg, hsl(36 38% 96%), hsl(30 38% 92%));
+
+    --shadow-soft: 0 4px 20px -8px hsl(28 32% 18% / 0.12);
+    --shadow-warm: 0 12px 40px -12px hsl(24 84% 50% / 0.25);
+    --shadow-card: 0 2px 12px -4px hsl(28 32% 18% / 0.08);
+
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+    --sidebar-background: 36 38% 96%;
+    --sidebar-foreground: 28 32% 18%;
+    --sidebar-primary: 28 32% 18%;
+    --sidebar-primary-foreground: 36 38% 96%;
+    --sidebar-accent: 30 38% 85%;
+    --sidebar-accent-foreground: 28 32% 18%;
+    --sidebar-border: 30 28% 82%;
+    --sidebar-ring: 24 84% 60%;
+  }
+
+  .dark {
+    --background: 28 30% 10%;
+    --foreground: 36 38% 96%;
+    --card: 28 28% 14%;
+    --card-foreground: 36 38% 96%;
+    --popover: 28 28% 14%;
+    --popover-foreground: 36 38% 96%;
+    --primary: 36 38% 96%;
+    --primary-foreground: 28 32% 18%;
+    --secondary: 28 24% 22%;
+    --secondary-foreground: 36 38% 96%;
+    --muted: 28 22% 20%;
+    --muted-foreground: 32 18% 70%;
+    --accent: 24 84% 68%;
+    --accent-foreground: 28 32% 18%;
+    --destructive: 0 62% 45%;
+    --destructive-foreground: 36 38% 96%;
+    --border: 28 24% 22%;
+    --input: 28 24% 22%;
+    --ring: 24 84% 60%;
+    --sidebar-background: 28 30% 10%;
+    --sidebar-foreground: 36 38% 96%;
+    --sidebar-primary: 24 84% 68%;
+    --sidebar-primary-foreground: 28 32% 18%;
+    --sidebar-accent: 28 24% 22%;
+    --sidebar-accent-foreground: 36 38% 96%;
+    --sidebar-border: 28 24% 22%;
+    --sidebar-ring: 24 84% 60%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Open Sans', system-ui, sans-serif;
+    font-feature-settings: 'cv02', 'cv03', 'cv04';
+  }
+
+  h1, h2, h3, h4, .font-display {
+    font-family: 'Merriweather', Georgia, serif;
+    letter-spacing: -0.01em;
+  }
+}
