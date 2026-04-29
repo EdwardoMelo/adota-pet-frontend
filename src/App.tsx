@@ -26,6 +26,7 @@ import AdminTenantsPage from "./pages/admin/AdminTenantsPage";
 import AdminUsersPage from "./pages/admin/AdminUsersPage";
 import AdminRequestsPage from "./pages/admin/AdminRequestsPage";
 import { FeedbackSnackbar } from "./components/FeedbackSnackbar";
+import { PostHogProvider } from "./components/PostHogProvider";
 
 const queryClient = new QueryClient();
 
@@ -36,6 +37,7 @@ const App = () => (
       <Sonner />
       <FeedbackSnackbar />
       <BrowserRouter>
+        <PostHogProvider>
         <AuthProvider>
           <Routes>
             <Route path="/" element={<Index />} />
@@ -95,6 +97,7 @@ const App = () => (
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
+        </PostHogProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

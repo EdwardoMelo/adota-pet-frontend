@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { procedureService } from "@/services";
 import type { ProcedureResponseDTO } from "@/dtos";
@@ -18,8 +19,22 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { StatusBadge } from "@/components/StatusBadge";
+import { FormErrorAlert } from "@/components/FormErrorAlert";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Clock, Loader2, Pencil, Plus, Stethoscope, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { resolveApiErrorMessage } from "@/services/apiClient";
+import { store } from "@/store";
+import { clearFeedback } from "@/store/feedbackSlice";
+import { track } from "@/lib/analytics";
 
 const empty = {
   name: "",
@@ -29,6 +44,7 @@ const empty = {
 };
 
 export default function ShelterProceduresPage() {
+  const location = useLocation();
   const { tenant } = useAuth();
   const [procs, setProcs] = useState<ProcedureResponseDTO[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,6 +52,9 @@ export default function ShelterProceduresPage() {
   const [editing, setEditing] = useState<ProcedureResponseDTO | null>(null);
   const [form, setForm] = useState(empty);
   const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   async function load() {
     if (!tenant) return;
@@ -52,10 +71,12 @@ export default function ShelterProceduresPage() {
   function openCreate() {
     setEditing(null);
     setForm(empty);
+    setFormError(null);
     setOpen(true);
   }
 
   function openEdit(p: ProcedureResponseDTO) {
+    setFormError(null);
     setEditing(p);
     setForm({
       name: p.name,
@@ -69,6 +90,7 @@ export default function ShelterProceduresPage() {
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     if (!tenant) return;
+    setFormError(null);
     try {
       setSaving(true);
       if (editing) {
@@ -77,21 +99,36 @@ export default function ShelterProceduresPage() {
       } else {
         await procedureService.create({ ...form, tenantId: tenant.id });
         toast.success("Procedimento cadastrado.");
+        track("shelter_procedure_created", {
+          role: "shelter_admin",
+          source_page: location.pathname,
+          tenant_id: tenant.id,
+        });
       }
       setOpen(false);
       load();
-    } catch {
-      toast.error("Erro ao salvar.");
+    } catch (error) {
+      store.dispatch(clearFeedback());
+      setFormError(resolveApiErrorMessage(error));
     } finally {
       setSaving(false);
     }
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm("Remover este procedimento?")) return;
-    await procedureService.remove(id);
-    toast.success("Procedimento removido.");
-    load();
+  async function confirmDelete() {
+    if (!deleteId) return;
+    try {
+      setDeleting(true);
+      await procedureService.remove(deleteId);
+      toast.success("Procedimento removido.");
+      setDeleteId(null);
+      load();
+    } catch (error) {
+      store.dispatch(clearFeedback());
+      toast.error(resolveApiErrorMessage(error));
+    } finally {
+      setDeleting(false);
+    }
   }
 
   return (
@@ -167,8 +204,9 @@ export default function ShelterProceduresPage() {
                   <Button
                     size="icon"
                     variant="ghost"
-                    onClick={() => handleDelete(p.id)}
+                    onClick={() => setDeleteId(p.id)}
                     className="rounded-full text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    aria-label={`Remover procedimento ${p.name}`}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -179,7 +217,13 @@ export default function ShelterProceduresPage() {
         )}
       </section>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog
+        open={open}
+        onOpenChange={(next) => {
+          setOpen(next);
+          if (!next) setFormError(null);
+        }}
+      >
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="font-display">
@@ -187,6 +231,7 @@ export default function ShelterProceduresPage() {
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSave} className="space-y-4">
+            <FormErrorAlert message={formError} />
             <div className="space-y-2">
               <Label htmlFor="name">Nome</Label>
               <Input
@@ -239,14 +284,53 @@ export default function ShelterProceduresPage() {
               <Button
                 type="submit"
                 disabled={saving}
+                aria-busy={saving}
                 className="bg-accent text-accent-foreground hover:bg-accent/90"
               >
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Salvar"}
+                {saving ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Salvando...
+                  </>
+                ) : (
+                  "Salvar"
+                )}
               </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={deleteId !== null} onOpenChange={(next) => !next && setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remover este procedimento?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Agendamentos futuros podem ficar inconsistentes. Confirme apenas se não houver marcações ativas para este
+              serviço.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={deleting}
+              aria-busy={deleting}
+              onClick={() => void confirmDelete()}
+            >
+              {deleting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Removendo...
+                </>
+              ) : (
+                "Remover"
+              )}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

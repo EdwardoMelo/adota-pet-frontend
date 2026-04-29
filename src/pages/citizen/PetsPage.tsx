@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import { petService } from "@/services";
 import type { PetResponseDTO, PetSpecies } from "@/dtos";
 import { PetCard } from "@/components/PetCard";
@@ -17,44 +18,89 @@ const speciesFilters: { value: PetSpecies | "all"; label: string }[] = [
 ];
 
 export default function PetsPage() {
+  const { user } = useAuth();
   const [pets, setPets] = useState<PetResponseDTO[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [species, setSpecies] = useState<PetSpecies | "all">("all");
+  const [city, setCity] = useState("");
+  const [state, setState] = useState("");
 
   useEffect(() => {
+    setLoading(true);
     petService
-      .getAvailable()
+      .getAvailable({
+        city: city || undefined,
+        state: state || undefined,
+        search: search || undefined,
+      })
       .then(setPets)
       .finally(() => setLoading(false));
-  }, []);
+  }, [city, state, search]);
 
   const filtered = useMemo(() => {
     return pets.filter((p) => {
       if (species !== "all" && p.species !== species) return false;
-      if (search && !`${p.name} ${p.description}`.toLowerCase().includes(search.toLowerCase()))
-        return false;
       return true;
     });
-  }, [pets, species, search]);
+  }, [pets, species]);
 
   return (
     <>
       <PageHeader
         title="Pets disponíveis para adoção"
-        description="Conheça os animais que esperam por um lar nos canis municipais parceiros."
+        description={
+          user?.role === "citizen"
+            ? "Filtre por local, abra um pet e use Visitar ou Adotar — depois acompanhe em Minhas adoções ou Agendamentos."
+            : "Conheça os animais que esperam por um lar nos canis municipais parceiros. Para visitar ou adotar, faça login."
+        }
       />
 
       <section className="container mx-auto px-6 py-10">
-        <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="relative w-full max-w-sm">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <div className="mb-8 flex flex-col gap-3">
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="relative w-full">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Buscar por nome ou descrição..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="rounded-full border-border/60 bg-card pl-10"
+              />
+            </div>
             <Input
-              placeholder="Buscar por nome ou descrição..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="rounded-full border-border/60 bg-card pl-10"
+              placeholder="Cidade (ex.: Gravataí)"
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+              className="rounded-full border-border/60 bg-card"
             />
+            <Input
+              placeholder="UF (ex.: RS)"
+              value={state}
+              onChange={(e) => setState(e.target.value.toUpperCase())}
+              className="rounded-full border-border/60 bg-card"
+            />
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="text-xs text-muted-foreground">
+              {city || state
+                ? "Filtrando por localização do canil."
+                : "Exibindo pets de todos os canis."}
+            </div>
+            {(city || state || search) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="rounded-full"
+                onClick={() => {
+                  setSearch("");
+                  setCity("");
+                  setState("");
+                }}
+              >
+                Limpar filtros
+              </Button>
+            )}
           </div>
           <div className="flex flex-wrap gap-2">
             {speciesFilters.map((f) => (

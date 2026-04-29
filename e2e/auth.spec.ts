@@ -10,13 +10,22 @@ test.describe("Authentication stories", () => {
   });
 
   test("duplicate citizen registration should fail", async ({ appPage }) => {
+    const email = `duplicado.e2e.${Date.now()}@email.com`;
+
     await appPage.goto("/");
     await appPage.getByLabel("Nome").first().fill("Ana Beatriz");
-    await appPage.getByLabel("E-mail").first().fill("ana@email.com");
+    await appPage.getByLabel("E-mail").first().fill(email);
     await appPage.getByLabel("Senha").first().fill("123456");
     await appPage.getByLabel("Confirmar senha").first().fill("123456");
     await appPage.getByRole("button", { name: "Continuar como cidadão" }).click();
-    await expect(appPage.getByText(/erro|não foi possível|já cadastrado/i)).toBeVisible();
+
+    await appPage.goto("/");
+    await appPage.getByLabel("Nome").first().fill("Ana Beatriz");
+    await appPage.getByLabel("E-mail").first().fill(email);
+    await appPage.getByLabel("Senha").first().fill("123456");
+    await appPage.getByLabel("Confirmar senha").first().fill("123456");
+    await appPage.getByRole("button", { name: "Continuar como cidadão" }).click();
+    await expect(appPage.getByText(/email já cadastrado/i).first()).toBeVisible();
   });
 
   test("unauthorized route access should redirect to login", async ({ appPage }) => {

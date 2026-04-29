@@ -6,6 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { FormErrorAlert } from "@/components/FormErrorAlert";
+import { store } from "@/store";
+import { clearFeedback } from "@/store/feedbackSlice";
+import { resolveApiErrorMessage } from "@/services/apiClient";
 import { onboardingService, petService } from "@/services";
 import type { PetResponseDTO } from "@/dtos";
 import { emptyAddress, validateAddress } from "@/lib/address";
@@ -13,6 +17,7 @@ import { homeForRole } from "@/lib/roleRoutes";
 import { PetCard } from "@/components/PetCard";
 import { toast } from "sonner";
 import { ArrowRight, Calendar, HeartHandshake, Loader2, PawPrint, Search, ShieldCheck } from "lucide-react";
+import { track } from "@/lib/analytics";
 import heroPet from "@/assets/hero-pet.jpg";
 
 const features = [
@@ -35,9 +40,11 @@ const features = [
 
 const Index = () => {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, user } = useAuth();
   const [citizenSubmitting, setCitizenSubmitting] = useState(false);
   const [shelterSubmitting, setShelterSubmitting] = useState(false);
+  const [citizenFormError, setCitizenFormError] = useState<string | null>(null);
+  const [shelterFormError, setShelterFormError] = useState<string | null>(null);
   const [citizenForm, setCitizenForm] = useState({
     name: "",
     email: "",
@@ -67,6 +74,7 @@ const Index = () => {
 
   async function handleCitizenSubmit(e: React.FormEvent) {
     e.preventDefault();
+    setCitizenFormError(null);
     if (citizenForm.password.length < 6) {
       toast.error("A senha deve ter no mínimo 6 caracteres.");
       return;
@@ -83,8 +91,16 @@ const Index = () => {
         password: citizenForm.password,
       });
       await login(user.id);
+      track("signup_citizen_success", {
+        role: user.role,
+        source_page: "/",
+        tenant_id: user.tenantId ?? undefined,
+      });
       toast.success("Cadastro concluído com sucesso!");
       navigate(homeForRole[user.role]);
+    } catch (error) {
+      store.dispatch(clearFeedback());
+      setCitizenFormError(resolveApiErrorMessage(error));
     } finally {
       setCitizenSubmitting(false);
     }
@@ -92,6 +108,7 @@ const Index = () => {
 
   async function handleShelterSubmit(e: React.FormEvent) {
     e.preventDefault();
+    setShelterFormError(null);
     if (shelterForm.password.length < 6) {
       toast.error("A senha do responsável deve ter no mínimo 6 caracteres.");
       return;
@@ -119,6 +136,9 @@ const Index = () => {
           email: shelterForm.shelterEmail,
         },
       });
+      track("signup_shelter_ticket_submitted", {
+        source_page: "/",
+      });
       toast.success(
         "Solicitação enviada! Um super admin irá analisar seu cadastro.",
       );
@@ -133,6 +153,9 @@ const Index = () => {
         address: { ...emptyAddress },
         shelterEmail: "",
       });
+    } catch (error) {
+      store.dispatch(clearFeedback());
+      setShelterFormError(resolveApiErrorMessage(error));
     } finally {
       setShelterSubmitting(false);
     }
@@ -148,17 +171,58 @@ const Index = () => {
           AdotaPet
         </Link>
         <div className="flex items-center gap-3">
-          <Link
-            to="/login"
-            className="hidden text-sm font-semibold text-muted-foreground hover:text-foreground sm:block"
-          >
-            Entrar
-          </Link>
-          <Button asChild className="rounded-full bg-accent text-accent-foreground hover:bg-accent/90">
-            <a href="#onboarding">Começar agora</a>
-          </Button>
+          {user ? (
+            <>
+              <span className="hidden text-sm text-muted-foreground sm:inline">
+                Olá, <strong className="text-foreground">{user.name.split(" ")[0]}</strong>
+              </span>
+              <Button asChild className="rounded-full bg-accent text-accent-foreground hover:bg-accent/90">
+                <Link to={homeForRole[user.role]}>Ir para a plataforma</Link>
+              </Button>
+            </>
+          ) : (
+            <>
+              <Link
+                to="/login"
+                className="hidden text-sm font-semibold text-muted-foreground hover:text-foreground sm:block"
+              >
+                Entrar
+              </Link>
+              <Button asChild className="rounded-full bg-accent text-accent-foreground hover:bg-accent/90">
+                <a href="#onboarding">Começar agora</a>
+              </Button>
+            </>
+          )}
         </div>
       </header>
+
+      {user?.role === "citizen" && (
+        <section className="border-b border-border/60 bg-secondary/40">
+          <div className="container mx-auto px-6 py-6">
+            <Card className="border-accent/30 bg-card p-5 shadow-card sm:p-6">
+              <p className="text-xs font-semibold uppercase tracking-wide text-accent">Próximos passos</p>
+              <h2 className="mt-1 font-display text-xl font-bold">Continue de onde parou</h2>
+              <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+                Explore pets, cadastre seu animal para agendar procedimentos no canil e acompanhe solicitações de adoção.
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Button asChild size="sm" className="rounded-full bg-accent text-accent-foreground hover:bg-accent/90">
+                  <Link to="/pets">Ver pets disponíveis</Link>
+                </Button>
+                <Button asChild size="sm" variant="outline" className="rounded-full">
+                  <Link to="/my-pets">Meus pets</Link>
+                </Button>
+                <Button asChild size="sm" variant="outline" className="rounded-full">
+                  <Link to="/appointments/new">Agendar procedimento</Link>
+                </Button>
+                <Button asChild size="sm" variant="ghost" className="rounded-full">
+                  <Link to="/adoptions">Minhas adoções</Link>
+                </Button>
+              </div>
+            </Card>
+          </div>
+        </section>
+      )}
 
       {/* Hero */}
       <section className="relative overflow-hidden bg-gradient-hero">
@@ -184,22 +248,28 @@ const Index = () => {
               <Button asChild size="lg" variant="outline" className="rounded-full border-2">
                 <a href="#onboarding">Agendar procedimento</a>
               </Button>
+              <Button
+                asChild
+                size="lg"
+                variant="ghost"
+                className="rounded-full border border-accent/30 bg-accent/10 text-accent hover:bg-accent/20"
+              >
+                <a href="#shelter-onboarding">Quero administrar o canil</a>
+              </Button>
             </div>
 
-            <dl className="mt-12 grid max-w-md grid-cols-3 gap-6">
-              <div>
-                <dt className="font-display text-3xl font-bold text-accent">3+</dt>
-                <dd className="text-xs text-muted-foreground">Canis parceiros</dd>
-              </div>
-              <div>
-                <dt className="font-display text-3xl font-bold text-accent">120</dt>
-                <dd className="text-xs text-muted-foreground">Pets adotados</dd>
-              </div>
-              <div>
-                <dt className="font-display text-3xl font-bold text-accent">24h</dt>
-                <dd className="text-xs text-muted-foreground">Agendamento online</dd>
-              </div>
-            </dl>
+            <div className="mt-12 max-w-2xl rounded-2xl border border-accent/20 bg-accent/5 p-5 sm:p-6">
+              <p className="text-xs font-semibold uppercase tracking-wide text-accent">Sobre o AdotaPet</p>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                O AdotaPet surgiu em contexto acadêmico, com a proposta de usar tecnologia para facilitar e incentivar
+                a população a conhecer novos pets e se aproximar dos canis municipais.
+              </p>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                A plataforma não pretende ser, neste momento, uma solução final e definitiva. A ideia é oferecer um
+                ponto de partida sólido para consolidar as primeiras relações entre canis, população e pets, com base
+                em aprendizados contínuos.
+              </p>
+            </div>
           </div>
 
           <div className="relative mx-auto flex h-full w-full items-center justify-center">
@@ -291,6 +361,7 @@ const Index = () => {
               Crie sua conta agora e entre direto na plataforma para adotar.
             </p>
             <form onSubmit={handleCitizenSubmit} className="mt-5 space-y-4">
+              <FormErrorAlert message={citizenFormError} />
               <div className="space-y-2">
                 <Label htmlFor="citizen-name">Nome</Label>
                 <Input
@@ -350,6 +421,7 @@ const Index = () => {
               <Button
                 type="submit"
                 disabled={citizenSubmitting}
+                aria-busy={citizenSubmitting}
                 className="w-full rounded-full bg-accent text-accent-foreground hover:bg-accent/90"
               >
                 {citizenSubmitting ? "Cadastrando..." : "Continuar como cidadão"}
@@ -357,12 +429,16 @@ const Index = () => {
             </form>
           </Card>
 
-          <Card className="border-border/60 p-6 shadow-card">
+          <Card id="shelter-onboarding" className="border-border/60 p-6 shadow-card">
             <h3 className="font-display text-2xl font-bold">Sou um abrigo / entidade</h3>
             <p className="mt-2 text-sm text-muted-foreground">
               Envie seus dados para análise. O cadastro será liberado após aprovação.
             </p>
+            <div className="mt-4 rounded-xl border border-accent/25 bg-accent/5 px-3 py-2 text-xs text-muted-foreground">
+              Você deve cadastrar os dados da sua instituição antes de prosseguir.
+            </div>
             <form onSubmit={handleShelterSubmit} className="mt-5 space-y-4">
+              <FormErrorAlert message={shelterFormError} />
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="shelter-user-name">Nome do responsável</Label>
@@ -544,9 +620,10 @@ const Index = () => {
               <Button
                 type="submit"
                 disabled={shelterSubmitting}
+                aria-busy={shelterSubmitting}
                 className="w-full rounded-full bg-accent text-accent-foreground hover:bg-accent/90"
               >
-                {shelterSubmitting ? "Enviando..." : "Enviar para aprovação"}
+                {shelterSubmitting ? "Enviando solicitação..." : "Enviar para aprovação"}
               </Button>
             </form>
           </Card>

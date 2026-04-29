@@ -4,13 +4,13 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
   appointmentService,
   procedureService,
-  tenantService,
+  shelterService,
   userPetService,
 } from "@/services";
 import type {
   AppointmentResponseDTO,
   ProcedureResponseDTO,
-  TenantResponseDTO,
+  ShelterResponseDTO,
   UserPetResponseDTO,
 } from "@/dtos";
 import { PageHeader } from "@/components/PageHeader";
@@ -23,6 +23,9 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import { formatAddressInline } from "@/lib/address";
+import { resolveApiErrorMessage } from "@/services/apiClient";
+import { store } from "@/store";
+import { clearFeedback } from "@/store/feedbackSlice";
 
 const statusTone = {
   scheduled: "accent",
@@ -42,16 +45,16 @@ export default function MyAppointmentsPage() {
   const { user } = useAuth();
   const [items, setItems] = useState<AppointmentResponseDTO[]>([]);
   const [procMap, setProcMap] = useState<Record<string, ProcedureResponseDTO>>({});
-  const [tenantMap, setTenantMap] = useState<Record<string, TenantResponseDTO>>({});
+  const [shelterMap, setShelterMap] = useState<Record<string, ShelterResponseDTO>>({});
   const [petMap, setPetMap] = useState<Record<string, UserPetResponseDTO>>({});
   const [loading, setLoading] = useState(true);
 
   async function load() {
     if (!user) return;
     setLoading(true);
-    const [list, tenants, pets] = await Promise.all([
+    const [list, shelters, pets] = await Promise.all([
       appointmentService.getAll({ userId: user.id }),
-      tenantService.getAll(),
+      shelterService.getAll(),
       userPetService.getByUser(user.id),
     ]);
 
@@ -62,7 +65,12 @@ export default function MyAppointmentsPage() {
         procs.filter((p): p is ProcedureResponseDTO => !!p).map((p) => [p.id, p]),
       ),
     );
-    setTenantMap(Object.fromEntries(tenants.map((t) => [t.id, t])));
+    const sheltersByTenant = shelters.reduce<Record<string, ShelterResponseDTO>>((acc, shelter) => {
+      const key = String(shelter.tenantId);
+      if (!acc[key]) acc[key] = shelter;
+      return acc;
+    }, {});
+    setShelterMap(sheltersByTenant);
     setPetMap(Object.fromEntries(pets.map((p) => [p.id, p])));
     setItems(
       list.sort((a, b) => +new Date(b.scheduledAt) - +new Date(a.scheduledAt)),
@@ -80,8 +88,9 @@ export default function MyAppointmentsPage() {
       await appointmentService.update(id, { status: "cancelled" });
       toast.success("Agendamento cancelado.");
       load();
-    } catch {
-      toast.error("Erro ao cancelar.");
+    } catch (error) {
+      store.dispatch(clearFeedback());
+      toast.error(resolveApiErrorMessage(error));
     }
   }
 
@@ -89,7 +98,7 @@ export default function MyAppointmentsPage() {
     <>
       <PageHeader
         title="Meus agendamentos"
-        description="Acompanhe consultas e procedimentos agendados."
+        description="Veja data, local do canil e status; cancele com antecedência se não puder comparecer."
         actions={
           <Button
             asChild
@@ -111,7 +120,7 @@ export default function MyAppointmentsPage() {
           <EmptyState
             icon={CalendarClock}
             title="Nenhum agendamento ainda"
-            description="Quando você agendar um procedimento, ele aparecerá aqui."
+            description="Cadastre um pet em Meus pets, depois em Novo agendamento escolha canil, procedimento e data — o pedido aparecerá aqui."
             action={
               <Button
                 asChild
@@ -125,7 +134,7 @@ export default function MyAppointmentsPage() {
           <div className="space-y-4">
             {items.map((appt) => {
               const proc = procMap[appt.procedureId];
-              const tenant = tenantMap[appt.tenantId];
+              const shelter = shelterMap[appt.tenantId];
               const pet = appt.userPetId ? petMap[appt.userPetId] : null;
               return (
                 <Card
@@ -145,13 +154,13 @@ export default function MyAppointmentsPage() {
                           locale: ptBR,
                         })}
                       </p>
-                      {tenant && (
+                      {shelter && (
                         <>
                           <p className="mt-0.5 text-xs font-medium text-muted-foreground">
-                            {tenant.name}
+                            {shelter.name}
                           </p>
                           <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
-                            <MapPin className="h-3 w-3" /> {formatAddressInline(tenant.address)}
+                            <MapPin className="h-3 w-3" /> {formatAddressInline(shelter.address)}
                           </p>
                         </>
                       )}

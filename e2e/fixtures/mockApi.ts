@@ -34,6 +34,16 @@ const parseBody = (route: Route) => {
 };
 
 const id = (prefix: string) => `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
+const shelterFromTenant = (tenant: AnyObj) => ({
+  id: `shelter-${tenant.id}`,
+  name: tenant.name,
+  cnpj: null,
+  contact: "Contato do abrigo",
+  address: tenant.address,
+  email: `contato+${tenant.id}@abrigo.mock`,
+  tenantId: tenant.id,
+  createdAt: tenant.createdAt ?? new Date().toISOString(),
+});
 
 export async function enableMockApi(page: Page): Promise<void> {
   await page.route("**/api/**", async (route) => {
@@ -57,10 +67,49 @@ export async function enableMockApi(page: Page): Promise<void> {
       return json(route, 200, user);
     }
 
-    if (method === "GET" && path === "/tenants") return json(route, 200, db.tenants);
+    if (method === "GET" && path === "/tenants") {
+      const search = (url.searchParams.get("search") ?? "").toLowerCase();
+      const city = (url.searchParams.get("city") ?? "").toLowerCase();
+      const state = (url.searchParams.get("state") ?? "").toLowerCase();
+      const items = db.tenants.filter((t: AnyObj) => {
+        const tCity = (t.address?.city ?? "").toLowerCase();
+        const tState = (t.address?.state ?? "").toLowerCase();
+        const combined = `${t.name ?? ""} ${t.address?.street ?? ""} ${tCity} ${tState}`.toLowerCase();
+        if (city && !tCity.includes(city)) return false;
+        if (state && !tState.includes(state)) return false;
+        if (search && !combined.includes(search)) return false;
+        return true;
+      });
+      return json(route, 200, items);
+    }
     if (method === "GET" && path.startsWith("/tenants/")) {
       const tenant = db.tenants.find((t: AnyObj) => t.id === path.split("/")[2]) ?? null;
       return json(route, 200, tenant);
+    }
+
+    if (method === "GET" && path === "/shelters") {
+      const tenantId = url.searchParams.get("tenantId");
+      const search = (url.searchParams.get("search") ?? "").toLowerCase();
+      const city = (url.searchParams.get("city") ?? "").toLowerCase();
+      const state = (url.searchParams.get("state") ?? "").toLowerCase();
+      const items = db.tenants
+        .filter((tenant: AnyObj) => (!tenantId || tenant.id === tenantId))
+        .map((tenant: AnyObj) => shelterFromTenant(tenant))
+        .filter((shelter: AnyObj) => {
+          const sCity = (shelter.address?.city ?? "").toLowerCase();
+          const sState = (shelter.address?.state ?? "").toLowerCase();
+          const combined = `${shelter.name ?? ""} ${shelter.address?.street ?? ""} ${sCity} ${sState}`.toLowerCase();
+          if (city && !sCity.includes(city)) return false;
+          if (state && !sState.includes(state)) return false;
+          if (search && !combined.includes(search)) return false;
+          return true;
+        });
+      return json(route, 200, items);
+    }
+    if (method === "GET" && path.startsWith("/shelters/")) {
+      const shelterId = path.split("/")[2];
+      const tenant = db.tenants.find((t: AnyObj) => `shelter-${t.id}` === shelterId) ?? null;
+      return json(route, 200, tenant ? shelterFromTenant(tenant) : null);
     }
 
     if (method === "GET" && path === "/shelter-pets") {
@@ -73,8 +122,22 @@ export async function enableMockApi(page: Page): Promise<void> {
 
     if (method === "GET" && path === "/shelter-pets/available") {
       const tenantId = url.searchParams.get("tenantId");
+      const city = (url.searchParams.get("city") ?? "").toLowerCase();
+      const state = (url.searchParams.get("state") ?? "").toLowerCase();
+      const search = (url.searchParams.get("search") ?? "").toLowerCase();
       const items = db.shelterPets.filter(
-        (p: AnyObj) => p.status === "available" && (!tenantId || p.tenantId === tenantId),
+        (p: AnyObj) => {
+          if (p.status !== "available") return false;
+          if (tenantId && p.tenantId !== tenantId) return false;
+          const tenant = db.tenants.find((t: AnyObj) => t.id === p.tenantId);
+          const pCity = (tenant?.address?.city ?? "").toLowerCase();
+          const pState = (tenant?.address?.state ?? "").toLowerCase();
+          const combined = `${p.name ?? ""} ${p.description ?? ""}`.toLowerCase();
+          if (city && !pCity.includes(city)) return false;
+          if (state && !pState.includes(state)) return false;
+          if (search && !combined.includes(search)) return false;
+          return true;
+        },
       );
       return json(route, 200, items.map((p: AnyObj) => enrichPet(p)));
     }

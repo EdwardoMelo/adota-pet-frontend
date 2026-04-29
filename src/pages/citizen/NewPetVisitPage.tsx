@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { appointmentService, petService, procedureService, tenantService } from "@/services";
-import type { PetResponseDTO, ProcedureResponseDTO, TenantResponseDTO } from "@/dtos";
+import { appointmentService, petService, procedureService, shelterService } from "@/services";
+import type { PetResponseDTO, ProcedureResponseDTO, ShelterResponseDTO } from "@/dtos";
 import { useAuth } from "@/contexts/AuthContext";
 import { PageHeader } from "@/components/PageHeader";
 import { Card } from "@/components/ui/card";
@@ -12,6 +12,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { formatAddressInline } from "@/lib/address";
+import { FormErrorAlert } from "@/components/FormErrorAlert";
+import { resolveApiErrorMessage } from "@/services/apiClient";
+import { store } from "@/store";
+import { clearFeedback } from "@/store/feedbackSlice";
 
 export default function NewPetVisitPage() {
   const { petId } = useParams<{ petId: string }>();
@@ -19,12 +23,13 @@ export default function NewPetVisitPage() {
   const navigate = useNavigate();
 
   const [pet, setPet] = useState<PetResponseDTO | null>(null);
-  const [tenant, setTenant] = useState<TenantResponseDTO | null>(null);
+  const [shelter, setShelter] = useState<ShelterResponseDTO | null>(null);
   const [visitProcedure, setVisitProcedure] = useState<ProcedureResponseDTO | null>(null);
   const [scheduledAt, setScheduledAt] = useState("");
   const [notes, setNotes] = useState("");
   const [loadingContext, setLoadingContext] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const minDate = (() => {
     const d = new Date();
@@ -49,15 +54,16 @@ export default function NewPetVisitPage() {
           return;
         }
 
-        const selectedTenant = await tenantService.getById(selectedPet.tenantId);
-        if (!selectedTenant) {
-          toast.error("Canil não encontrado.");
+        const selectedShelters = await shelterService.getAll({ tenantId: selectedPet.tenantId });
+        const selectedShelter = selectedShelters[0] ?? null;
+        if (!selectedShelter) {
+          toast.error("Abrigo não encontrado.");
           navigate(`/pets/${petId}`);
           return;
         }
 
         setPet(selectedPet);
-        setTenant(selectedTenant);
+        setShelter(selectedShelter);
 
         const procedures = await procedureService.getActiveByTenant(selectedPet.tenantId);
         let ensuredVisitProcedure =
@@ -68,7 +74,7 @@ export default function NewPetVisitPage() {
             tenantId: selectedPet.tenantId,
             name: "Visita",
             description:
-              "Momento especial para conhecer o pet com calma, criar conexao e tirar duvidas com a equipe do abrigo.",
+              "Momento especial para conhecer o pet com calma, criar conexão e tirar dúvidas com a equipe do abrigo.",
             durationMinutes: 30,
             isActive: true,
           });
@@ -76,8 +82,10 @@ export default function NewPetVisitPage() {
         }
 
         setVisitProcedure(ensuredVisitProcedure);
-      } catch {
-        toast.error("Não foi possível preparar o fluxo de visita.");
+      } catch (error) {
+        store.dispatch(clearFeedback());
+        const msg = resolveApiErrorMessage(error);
+        toast.error(msg);
         navigate("/pets");
       } finally {
         setLoadingContext(false);
@@ -89,7 +97,8 @@ export default function NewPetVisitPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!user || !pet || !visitProcedure || !tenant) return;
+    setFormError(null);
+    if (!user || !pet || !visitProcedure || !shelter) return;
     if (!scheduledAt) {
       toast.error("Escolha uma data e horário.");
       return;
@@ -105,7 +114,7 @@ export default function NewPetVisitPage() {
         .join(" | ");
 
       await appointmentService.createVisit({
-        tenantId: tenant.id,
+        tenantId: shelter.tenantId,
         userId: user.id,
         procedureId: visitProcedure.id,
         petId: pet.id,
@@ -115,8 +124,9 @@ export default function NewPetVisitPage() {
 
       toast.success("Visita agendada com sucesso!");
       navigate("/appointments");
-    } catch {
-      toast.error("Não foi possível agendar a visita.");
+    } catch (error) {
+      store.dispatch(clearFeedback());
+      setFormError(resolveApiErrorMessage(error));
     } finally {
       setSubmitting(false);
     }
@@ -133,7 +143,7 @@ export default function NewPetVisitPage() {
     );
   }
 
-  if (!pet || !tenant || !visitProcedure) {
+  if (!pet || !shelter || !visitProcedure) {
     return null;
   }
 
@@ -141,11 +151,12 @@ export default function NewPetVisitPage() {
     <>
       <PageHeader
         title="Agendar visita"
-        description="Fluxo dedicado de visita: pet, canil e procedimento já vinculados."
+        description="Pet e canil já escolhidos — escolha apenas data e horário; depois confira em Meus agendamentos."
       />
       <section className="container mx-auto max-w-2xl px-6 py-10">
         <Card className="border-border/60 p-8 shadow-card">
           <form onSubmit={handleSubmit} className="space-y-6">
+            <FormErrorAlert message={formError} />
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label>Pet selecionado</Label>
@@ -153,7 +164,7 @@ export default function NewPetVisitPage() {
               </div>
               <div className="space-y-2">
                 <Label>Canil selecionado</Label>
-                <Input value={`${tenant.name} • ${formatAddressInline(tenant.address)}`} disabled />
+                <Input value={`${shelter.name} • ${formatAddressInline(shelter.address)}`} disabled />
               </div>
             </div>
 
@@ -170,7 +181,10 @@ export default function NewPetVisitPage() {
                 type="datetime-local"
                 value={scheduledAt}
                 min={minDate}
-                onChange={(event) => setScheduledAt(event.target.value)}
+                onChange={(event) => {
+                  setFormError(null);
+                  setScheduledAt(event.target.value);
+                }}
                 className="rounded-xl"
               />
             </div>
@@ -181,7 +195,10 @@ export default function NewPetVisitPage() {
                 id="notes"
                 rows={4}
                 value={notes}
-                onChange={(event) => setNotes(event.target.value)}
+                onChange={(event) => {
+                  setFormError(null);
+                  setNotes(event.target.value);
+                }}
                 placeholder="Ex.: melhor horário, observações da família..."
               />
             </div>
@@ -198,9 +215,17 @@ export default function NewPetVisitPage() {
               <Button
                 type="submit"
                 disabled={submitting}
+                aria-busy={submitting}
                 className="rounded-full bg-accent text-accent-foreground hover:bg-accent/90"
               >
-                {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Confirmar visita"}
+                {submitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Enviando...
+                  </>
+                ) : (
+                  "Confirmar visita"
+                )}
               </Button>
             </div>
           </form>

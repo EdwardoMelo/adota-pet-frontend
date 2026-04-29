@@ -2,9 +2,15 @@ import { api, dispatchApiError } from "./apiClient";
 import type { TenantResponseDTO, CreateTenantDTO, UpdateTenantDTO } from "@/dtos";
 
 export const tenantService = {
-  async getAll(): Promise<TenantResponseDTO[]> {
+  async getAll(filters?: {
+    search?: string;
+    city?: string;
+    state?: string;
+  }): Promise<TenantResponseDTO[]> {
     try {
-      const { data } = await api.get<TenantResponseDTO[]>("/tenants");
+      const { data } = await api.get<TenantResponseDTO[]>("/tenants", {
+        params: filters,
+      });
       return data;
     } catch (error) {
       return dispatchApiError(error);

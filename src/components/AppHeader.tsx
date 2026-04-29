@@ -11,9 +11,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { homeForRole } from "@/lib/roleRoutes";
-import { useEffect, useState } from "react";
-import { userService } from "@/services";
-import type { UserResponseDTO } from "@/dtos";
 
 const roleLabel: Record<string, string> = {
   super_admin: "Super admin",
@@ -22,17 +19,8 @@ const roleLabel: Record<string, string> = {
 };
 
 export function AppHeader() {
-  const { user, tenant, login, logout } = useAuth();
+  const { user, tenant, logout } = useAuth();
   const navigate = useNavigate();
-  const [allUsers, setAllUsers] = useState<UserResponseDTO[]>([]);
-
-  useEffect(() => {
-    if (!user) {
-      setAllUsers([]);
-      return;
-    }
-    userService.getAll().then(setAllUsers).catch(() => setAllUsers([]));
-  }, [user]);
 
   const navItems = (() => {
     if (!user) return [];
@@ -108,20 +96,7 @@ export function AppHeader() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-72">
-                <DropdownMenuLabel>Trocar de usuário (demo)</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {allUsers.map((u) => (
-                  <DropdownMenuItem
-                    key={u.id}
-                    onClick={() => login(u.id).then(() => navigate(homeForRole[u.role]))}
-                    className="flex flex-col items-start gap-0.5"
-                  >
-                    <span className="text-sm font-semibold">{u.name}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {roleLabel[u.role]} • {u.email}
-                    </span>
-                  </DropdownMenuItem>
-                ))}
+                <DropdownMenuLabel>Conta</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={() => {

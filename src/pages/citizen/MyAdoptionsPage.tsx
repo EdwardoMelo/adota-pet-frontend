@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { adoptionService, petService, tenantService } from "@/services";
+import { adoptionService, petService, shelterService } from "@/services";
 import type {
   AdoptionResponseDTO,
   PetResponseDTO,
-  TenantResponseDTO,
+  ShelterResponseDTO,
 } from "@/dtos";
 import { PageHeader } from "@/components/PageHeader";
 import { EmptyState } from "@/components/EmptyState";
@@ -30,22 +30,27 @@ export default function MyAdoptionsPage() {
   const { user } = useAuth();
   const [items, setItems] = useState<AdoptionResponseDTO[]>([]);
   const [petMap, setPetMap] = useState<Record<string, PetResponseDTO>>({});
-  const [tenantMap, setTenantMap] = useState<Record<string, TenantResponseDTO>>({});
+  const [shelterMap, setShelterMap] = useState<Record<string, ShelterResponseDTO>>({});
   const [loading, setLoading] = useState(true);
 
   async function load() {
     if (!user) return;
     setLoading(true);
-    const [list, pets, tenants] = await Promise.all([
+    const [list, pets, shelters] = await Promise.all([
       adoptionService.getAll({ userId: user.id }),
       petService.getAll(),
-      tenantService.getAll(),
+      shelterService.getAll(),
     ]);
     setItems(
       list.sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)),
     );
     setPetMap(Object.fromEntries(pets.map((p) => [p.id, p])));
-    setTenantMap(Object.fromEntries(tenants.map((t) => [t.id, t])));
+    const sheltersByTenant = shelters.reduce<Record<string, ShelterResponseDTO>>((acc, shelter) => {
+      const key = String(shelter.tenantId);
+      if (!acc[key]) acc[key] = shelter;
+      return acc;
+    }, {});
+    setShelterMap(sheltersByTenant);
     setLoading(false);
   }
 
@@ -58,9 +63,22 @@ export default function MyAdoptionsPage() {
     <>
       <PageHeader
         title="Minhas adoções"
-        description="Acompanhe as solicitações de adoção que você já realizou."
+        description="Após solicitar em um pet, o canil analisa — use esta lista para ver pendente, concluída ou cancelada."
       />
       <section className="container mx-auto px-6 py-10">
+        <div className="mb-8 flex flex-col gap-3 rounded-2xl border border-border/60 bg-card p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Ainda não escolheu um pet?
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Explore o catálogo e solicite adoção na ficha do animal; depois volte aqui para acompanhar.
+            </p>
+          </div>
+          <Button asChild className="shrink-0 rounded-full bg-accent text-accent-foreground hover:bg-accent/90">
+            <Link to="/pets">Ir para pets disponíveis</Link>
+          </Button>
+        </div>
         {loading ? (
           <div className="flex justify-center py-20">
             <Loader2 className="h-8 w-8 animate-spin text-accent" />
@@ -69,7 +87,7 @@ export default function MyAdoptionsPage() {
           <EmptyState
             icon={HeartHandshake}
             title="Nenhuma adoção ainda"
-            description="Quando você solicitar a adoção de um pet, ela aparecerá aqui."
+            description="Abra um pet que você goste, faça login se precisar e clique em Adotar — sua solicitação aparecerá aqui."
             action={
               <Button
                 asChild
@@ -83,7 +101,7 @@ export default function MyAdoptionsPage() {
           <div className="space-y-4">
             {items.map((adoption) => {
               const pet = petMap[adoption.petId];
-              const tenant = tenantMap[adoption.tenantId];
+              const shelter = shelterMap[adoption.tenantId];
               return (
                 <Card
                   key={adoption.id}
@@ -101,9 +119,9 @@ export default function MyAdoptionsPage() {
                         Solicitado em{" "}
                         {new Date(adoption.createdAt).toLocaleString("pt-BR")}
                       </p>
-                      {tenant && (
+                      {shelter && (
                         <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
-                          <MapPin className="h-3 w-3" /> {tenant.name}
+                          <MapPin className="h-3 w-3" /> {shelter.name}
                         </p>
                       )}
                     </div>

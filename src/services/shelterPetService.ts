@@ -6,10 +6,15 @@ import type {
 } from "@/dtos";
 
 export const shelterPetService = {
-  async getAll(tenantId?: string): Promise<ShelterPetResponseDTO[]> {
+  async getAll(filters?: {
+    tenantId?: string;
+    city?: string;
+    state?: string;
+    search?: string;
+  }): Promise<ShelterPetResponseDTO[]> {
     try {
       const { data } = await api.get<ShelterPetResponseDTO[]>("/shelter-pets", {
-        params: { tenantId },
+        params: filters,
       });
       return data;
     } catch (error) {
@@ -17,10 +22,15 @@ export const shelterPetService = {
     }
   },
 
-  async getAvailable(tenantId?: string): Promise<ShelterPetResponseDTO[]> {
+  async getAvailable(filters?: {
+    tenantId?: string;
+    city?: string;
+    state?: string;
+    search?: string;
+  }): Promise<ShelterPetResponseDTO[]> {
     try {
       const { data } = await api.get<ShelterPetResponseDTO[]>("/shelter-pets/available", {
-        params: { tenantId },
+        params: filters,
       });
       return data;
     } catch (error) {

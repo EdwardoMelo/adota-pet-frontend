@@ -8,6 +8,7 @@ import {
 } from "react";
 import { userService, tenantService } from "@/services";
 import type { UserResponseDTO, TenantResponseDTO } from "@/dtos";
+import { identifyUser, resetUser } from "@/lib/analytics";
 
 const STORAGE_KEY = "adotapet:userId";
 
@@ -26,11 +27,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [tenant, setTenant] = useState<TenantResponseDTO | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const hydrate = useCallback(async (userId: string | null) => {
+  const hydrate = useCallback(async (userId: string | null): Promise<UserResponseDTO | null> => {
     if (!userId) {
       setUser(null);
       setTenant(null);
-      return;
+      return null;
     }
     const u = await userService.getById(userId);
     setUser(u);
@@ -40,24 +41,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } else {
       setTenant(null);
     }
+    return u;
   }, []);
 
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
-    hydrate(stored).finally(() => setLoading(false));
+    hydrate(stored)
+      .then((u) => {
+        if (u) {
+          identifyUser(u.id, {
+            role: u.role,
+            tenant_id: u.tenantId ?? undefined,
+          });
+        }
+      })
+      .finally(() => setLoading(false));
   }, [hydrate]);
 
   const login = useCallback(
     async (userId: string) => {
       setLoading(true);
       localStorage.setItem(STORAGE_KEY, userId);
-      await hydrate(userId);
+      const u = await hydrate(userId);
+      if (u) {
+        identifyUser(u.id, {
+          role: u.role,
+          tenant_id: u.tenantId ?? undefined,
+        });
+      }
       setLoading(false);
     },
     [hydrate],
   );
 
   const logout = useCallback(() => {
+    resetUser();
     localStorage.removeItem(STORAGE_KEY);
     setUser(null);
     setTenant(null);

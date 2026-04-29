@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   appointmentService,
@@ -20,6 +21,9 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { EmptyState } from "@/components/EmptyState";
 import { BadgeCheck, CalendarClock, Check, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
+import { resolveApiErrorMessage } from "@/services/apiClient";
+import { store } from "@/store";
+import { clearFeedback } from "@/store/feedbackSlice";
 
 const statusTone = {
   scheduled: "accent",
@@ -42,6 +46,7 @@ export default function ShelterAppointmentsPage() {
   const [procMap, setProcMap] = useState<Record<string, ProcedureResponseDTO>>({});
   const [petMap, setPetMap] = useState<Record<string, UserPetResponseDTO>>({});
   const [loading, setLoading] = useState(true);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   async function load() {
     if (!tenant) return;
@@ -76,9 +81,17 @@ export default function ShelterAppointmentsPage() {
   }, [tenant]);
 
   async function setStatus(id: string, status: AppointmentStatus) {
-    await appointmentService.update(id, { status });
-    toast.success("Status atualizado.");
-    load();
+    try {
+      setUpdatingId(id);
+      await appointmentService.update(id, { status });
+      toast.success("Status atualizado.");
+      await load();
+    } catch (error) {
+      store.dispatch(clearFeedback());
+      toast.error(resolveApiErrorMessage(error));
+    } finally {
+      setUpdatingId(null);
+    }
   }
 
   return (
@@ -96,7 +109,12 @@ export default function ShelterAppointmentsPage() {
           <EmptyState
             icon={CalendarClock}
             title="Sem agendamentos"
-            description="Agendamentos novos aparecerão aqui em tempo real."
+            description="Cadastre procedimentos ativos para que cidadãos possam marcar horários. Novos pedidos aparecerão aqui."
+            action={
+              <Button asChild className="rounded-full bg-accent text-accent-foreground hover:bg-accent/90">
+                <Link to="/shelter/procedures">Ver procedimentos</Link>
+              </Button>
+            }
           />
         ) : (
           <div className="space-y-3">
@@ -105,6 +123,7 @@ export default function ShelterAppointmentsPage() {
               const proc = procMap[a.procedureId];
               const pet = a.userPetId ? petMap[a.userPetId] : null;
               const isOpen = a.status === "scheduled" || a.status === "confirmed";
+              const busy = updatingId === a.id;
               return (
                 <Card
                   key={a.id}
@@ -131,10 +150,17 @@ export default function ShelterAppointmentsPage() {
                       <Button
                         size="sm"
                         variant="outline"
+                        disabled={busy}
+                        aria-busy={busy}
                         onClick={() => setStatus(a.id, "confirmed")}
                         className="rounded-full"
                       >
-                        <BadgeCheck className="mr-1 h-3.5 w-3.5" /> Confirmar
+                        {busy ? (
+                          <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <BadgeCheck className="mr-1 h-3.5 w-3.5" />
+                        )}
+                        Confirmar
                       </Button>
                     )}
                     {isOpen && (
@@ -142,18 +168,32 @@ export default function ShelterAppointmentsPage() {
                         <Button
                           size="sm"
                           variant="outline"
+                          disabled={busy}
+                          aria-busy={busy}
                           onClick={() => setStatus(a.id, "completed")}
                           className="rounded-full"
                         >
-                          <Check className="mr-1 h-3.5 w-3.5" /> Concluir
+                          {busy ? (
+                            <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Check className="mr-1 h-3.5 w-3.5" />
+                          )}
+                          Concluir
                         </Button>
                         <Button
                           size="sm"
                           variant="ghost"
+                          disabled={busy}
+                          aria-busy={busy}
                           onClick={() => setStatus(a.id, "cancelled")}
                           className="rounded-full text-destructive hover:bg-destructive/10 hover:text-destructive"
                         >
-                          <X className="mr-1 h-3.5 w-3.5" /> Cancelar
+                          {busy ? (
+                            <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <X className="mr-1 h-3.5 w-3.5" />
+                          )}
+                          Cancelar
                         </Button>
                       </>
                     )}

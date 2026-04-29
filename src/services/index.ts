@@ -4,6 +4,7 @@ export { userPetService } from "./userPetService";
 export { procedureService } from "./procedureService";
 export { userService } from "./userService";
 export { tenantService } from "./tenantService";
+export { shelterService } from "./shelterService";
 export { appointmentService } from "./appointmentService";
 export { adoptionService } from "./adoptionService";
 export { onboardingService } from "./onboardingService";

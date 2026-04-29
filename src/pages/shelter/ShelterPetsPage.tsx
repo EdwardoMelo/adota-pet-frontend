@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { FirebaseService, petService } from "@/services";
 import type { PetResponseDTO, PetSpecies, PetStatus } from "@/dtos";
@@ -24,8 +25,22 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { StatusBadge } from "@/components/StatusBadge";
+import { FormErrorAlert } from "@/components/FormErrorAlert";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { resolveApiErrorMessage } from "@/services/apiClient";
+import { store } from "@/store";
+import { clearFeedback } from "@/store/feedbackSlice";
+import { track } from "@/lib/analytics";
 
 const empty = {
   name: "",
@@ -37,6 +52,7 @@ const empty = {
 };
 
 export default function ShelterPetsPage() {
+  const location = useLocation();
   const { tenant } = useAuth();
   const [pets, setPets] = useState<PetResponseDTO[]>([]);
   const [loading, setLoading] = useState(true);
@@ -44,6 +60,9 @@ export default function ShelterPetsPage() {
   const [editing, setEditing] = useState<PetResponseDTO | null>(null);
   const [form, setForm] = useState(empty);
   const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState("");
   const [isDragging, setIsDragging] = useState(false);
@@ -62,7 +81,7 @@ export default function ShelterPetsPage() {
   async function load() {
     if (!tenant) return;
     setLoading(true);
-    setPets(await petService.getAll(tenant.id));
+    setPets(await petService.getAll({ tenantId: tenant.id }));
     setLoading(false);
   }
 
@@ -73,12 +92,14 @@ export default function ShelterPetsPage() {
   function openCreate() {
     setEditing(null);
     setForm(empty);
+    setFormError(null);
     setSelectedFile(null);
     setPreviewUrl("");
     setOpen(true);
   }
 
   function openEdit(p: PetResponseDTO) {
+    setFormError(null);
     setEditing(p);
     setForm({
       name: p.name,
@@ -111,6 +132,7 @@ export default function ShelterPetsPage() {
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     if (!tenant) return;
+    setFormError(null);
     if (!editing && !selectedFile) {
       toast.error("Selecione uma imagem para o pet.");
       return;
@@ -132,29 +154,44 @@ export default function ShelterPetsPage() {
       } else {
         await petService.create({ ...form, imageUrl, tenantId: tenant.id });
         toast.success("Pet cadastrado.");
+        track("shelter_pet_created", {
+          role: "shelter_admin",
+          source_page: location.pathname,
+          tenant_id: tenant.id,
+        });
       }
 
       setSelectedFile(null);
       setPreviewUrl("");
       setOpen(false);
       load();
-    } catch {
+    } catch (error) {
       if (uploadedImageUrl) {
         await FirebaseService.delete(uploadedImageUrl).catch(() => {
           toast.warning("Upload revertido parcialmente. Remova o arquivo manualmente no Firebase.");
         });
       }
-      toast.error("Erro ao salvar.");
+      store.dispatch(clearFeedback());
+      setFormError(resolveApiErrorMessage(error));
     } finally {
       setSaving(false);
     }
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm("Remover este pet?")) return;
-    await petService.remove(id);
-    toast.success("Pet removido.");
-    load();
+  async function confirmDelete() {
+    if (!deleteId) return;
+    try {
+      setDeleting(true);
+      await petService.remove(deleteId);
+      toast.success("Pet removido.");
+      setDeleteId(null);
+      load();
+    } catch (error) {
+      store.dispatch(clearFeedback());
+      toast.error(resolveApiErrorMessage(error));
+    } finally {
+      setDeleting(false);
+    }
   }
 
   return (
@@ -214,8 +251,9 @@ export default function ShelterPetsPage() {
                   <Button
                     size="icon"
                     variant="ghost"
-                    onClick={() => handleDelete(p.id)}
+                    onClick={() => setDeleteId(p.id)}
                     className="rounded-full text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    aria-label={`Remover pet ${p.name}`}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -226,7 +264,13 @@ export default function ShelterPetsPage() {
         )}
       </section>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog
+        open={open}
+        onOpenChange={(next) => {
+          setOpen(next);
+          if (!next) setFormError(null);
+        }}
+      >
         <DialogTrigger className="hidden" />
         <DialogContent className="max-w-lg">
           <DialogHeader>
@@ -235,6 +279,7 @@ export default function ShelterPetsPage() {
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSave} className="space-y-4">
+            <FormErrorAlert message={formError} />
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="name">Nome</Label>
@@ -338,14 +383,52 @@ export default function ShelterPetsPage() {
               <Button
                 type="submit"
                 disabled={saving}
+                aria-busy={saving}
                 className="bg-accent text-accent-foreground hover:bg-accent/90"
               >
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Salvar"}
+                {saving ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Salvando...
+                  </>
+                ) : (
+                  "Salvar"
+                )}
               </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={deleteId !== null} onOpenChange={(next) => !next && setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remover este pet?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação não pode ser desfeita. O animal sairá do catálogo público do canil.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={deleting}
+              aria-busy={deleting}
+              onClick={() => void confirmDelete()}
+            >
+              {deleting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Removendo...
+                </>
+              ) : (
+                "Remover"
+              )}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

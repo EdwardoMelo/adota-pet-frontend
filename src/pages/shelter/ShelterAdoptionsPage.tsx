@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { adoptionService, petService, userService } from "@/services";
 import type {
@@ -14,6 +15,9 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { EmptyState } from "@/components/EmptyState";
 import { Check, HeartHandshake, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
+import { resolveApiErrorMessage } from "@/services/apiClient";
+import { store } from "@/store";
+import { clearFeedback } from "@/store/feedbackSlice";
 
 const statusTone = {
   pending: "warning",
@@ -33,6 +37,7 @@ export default function ShelterAdoptionsPage() {
   const [usersMap, setUsersMap] = useState<Record<string, UserResponseDTO>>({});
   const [petMap, setPetMap] = useState<Record<string, PetResponseDTO>>({});
   const [loading, setLoading] = useState(true);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   async function load() {
     if (!tenant) return;
@@ -40,7 +45,7 @@ export default function ShelterAdoptionsPage() {
     const [list, users, pets] = await Promise.all([
       adoptionService.getAll({ tenantId: tenant.id }),
       userService.getAll(),
-      petService.getAll(tenant.id),
+      petService.getAll({ tenantId: tenant.id }),
     ]);
     setItems(
       list.sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)),
@@ -56,9 +61,17 @@ export default function ShelterAdoptionsPage() {
   }, [tenant]);
 
   async function setStatus(id: string, status: AdoptionStatus) {
-    await adoptionService.update(id, { status });
-    toast.success("Status da adoção atualizado.");
-    load();
+    try {
+      setUpdatingId(id);
+      await adoptionService.update(id, { status });
+      toast.success("Status da adoção atualizado.");
+      await load();
+    } catch (error) {
+      store.dispatch(clearFeedback());
+      toast.error(resolveApiErrorMessage(error));
+    } finally {
+      setUpdatingId(null);
+    }
   }
 
   return (
@@ -76,13 +89,20 @@ export default function ShelterAdoptionsPage() {
           <EmptyState
             icon={HeartHandshake}
             title="Sem solicitações de adoção"
-            description="Novas solicitações aparecerão aqui."
+            description="Quando um cidadão solicitar a adoção de um pet do seu catálogo, o pedido aparecerá aqui."
+            action={
+              <Button asChild className="rounded-full bg-accent text-accent-foreground hover:bg-accent/90">
+                <Link to="/shelter/pets">Ver pets do canil</Link>
+              </Button>
+            }
           />
         ) : (
           <div className="space-y-3">
             {items.map((a) => {
               const u = usersMap[a.userId];
               const pet = petMap[a.petId];
+              const petTitle = pet?.name ?? "Pet (indisponível no cadastro)";
+              const busy = updatingId === a.id;
               return (
                 <Card
                   key={a.id}
@@ -90,7 +110,7 @@ export default function ShelterAdoptionsPage() {
                 >
                   <div>
                     <p className="font-display text-base font-bold">
-                      {pet?.name ?? "Pet"} • {u?.name ?? "Cidadão"}
+                      {petTitle} • {u?.name ?? "Cidadão"}
                     </p>
                     <p className="text-sm text-muted-foreground">
                       Solicitada em {new Date(a.createdAt).toLocaleString("pt-BR")}
@@ -108,18 +128,32 @@ export default function ShelterAdoptionsPage() {
                         <Button
                           size="sm"
                           variant="outline"
+                          disabled={busy}
+                          aria-busy={busy}
                           onClick={() => setStatus(a.id, "completed")}
                           className="rounded-full"
                         >
-                          <Check className="mr-1 h-3.5 w-3.5" /> Concluir
+                          {busy ? (
+                            <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Check className="mr-1 h-3.5 w-3.5" />
+                          )}
+                          Concluir
                         </Button>
                         <Button
                           size="sm"
                           variant="ghost"
+                          disabled={busy}
+                          aria-busy={busy}
                           onClick={() => setStatus(a.id, "cancelled")}
                           className="rounded-full text-destructive hover:bg-destructive/10 hover:text-destructive"
                         >
-                          <X className="mr-1 h-3.5 w-3.5" /> Cancelar
+                          {busy ? (
+                            <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <X className="mr-1 h-3.5 w-3.5" />
+                          )}
+                          Cancelar
                         </Button>
                       </>
                     )}
