@@ -82,6 +82,7 @@ export default function NewAppointmentPage() {
     if (!user || appointmentStartedRef.current) return;
     appointmentStartedRef.current = true;
     track("appointment_started", {
+      flow: "general",
       role: user.role,
       source_page: location.pathname,
       tenant_id: tenantIdParam || undefined,
@@ -163,6 +164,7 @@ export default function NewAppointmentPage() {
       });
       toast.success("Agendamento criado com sucesso!");
       track("appointment_created", {
+        flow: "general",
         role: user.role,
         source_page: location.pathname,
         tenant_id: selectedTenantId,
@@ -173,6 +175,7 @@ export default function NewAppointmentPage() {
     } catch (error) {
       store.dispatch(clearFeedback());
       track("appointment_create_failed", {
+        flow: "general",
         role: user.role,
         source_page: location.pathname,
         tenant_id: selectedTenantId,

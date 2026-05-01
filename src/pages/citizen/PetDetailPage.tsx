@@ -53,6 +53,7 @@ export default function PetDetailPage() {
     if (loading || !pet) return;
     track("pet_detail_viewed", {
       role: user?.role ?? "anonymous",
+      is_logged_in: Boolean(user),
       source_page: location.pathname,
       tenant_id: pet.tenantId,
       shelter_id: shelter?.id,
@@ -90,6 +91,7 @@ export default function PetDetailPage() {
         userId: user.id,
       });
       track("adoption_requested", {
+        adoption_flow: "direct_from_pet_detail",
         role: "citizen",
         source_page: location.pathname,
         tenant_id: pet.tenantId,
@@ -119,6 +121,14 @@ export default function PetDetailPage() {
     }
     setAdoptionError(null);
     setAdoptDialogOpen(true);
+    track("adoption_intent", {
+      step: "confirm_dialog_opened",
+      role: user.role,
+      source_page: location.pathname,
+      tenant_id: pet.tenantId,
+      shelter_id: shelter?.id,
+      pet_id: pet.id,
+    });
   }
 
   function handleVisitClick() {
@@ -127,6 +137,14 @@ export default function PetDetailPage() {
       navigate("/login");
       return;
     }
+    track("pet_visit_intent", {
+      step: "navigate_to_visit_form",
+      role: user.role,
+      source_page: location.pathname,
+      tenant_id: pet.tenantId,
+      shelter_id: shelter?.id,
+      pet_id: pet.id,
+    });
     navigate(`/appointments/visit/${pet.id}`);
   }
 

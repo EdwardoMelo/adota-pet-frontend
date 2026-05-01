@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { appointmentService, petService, procedureService, shelterService } from "@/services";
 import type { PetResponseDTO, ProcedureResponseDTO, ShelterResponseDTO } from "@/dtos";
 import { useAuth } from "@/contexts/AuthContext";
@@ -16,11 +16,14 @@ import { FormErrorAlert } from "@/components/FormErrorAlert";
 import { resolveApiErrorMessage } from "@/services/apiClient";
 import { store } from "@/store";
 import { clearFeedback } from "@/store/feedbackSlice";
+import { apiErrorProps, track } from "@/lib/analytics";
 
 export default function NewPetVisitPage() {
   const { petId } = useParams<{ petId: string }>();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const visitFlowStartedRef = useRef(false);
 
   const [pet, setPet] = useState<PetResponseDTO | null>(null);
   const [shelter, setShelter] = useState<ShelterResponseDTO | null>(null);
@@ -95,6 +98,38 @@ export default function NewPetVisitPage() {
     bootstrapVisitContext();
   }, [navigate, petId]);
 
+  useEffect(() => {
+    if (
+      loadingContext ||
+      authLoading ||
+      !pet ||
+      !shelter ||
+      !visitProcedure ||
+      visitFlowStartedRef.current
+    ) {
+      return;
+    }
+    visitFlowStartedRef.current = true;
+    track("appointment_started", {
+      flow: "pet_visit",
+      role: user?.role ?? "anonymous",
+      source_page: location.pathname,
+      tenant_id: pet.tenantId,
+      shelter_id: shelter.id,
+      pet_id: pet.id,
+      procedure_id: visitProcedure.id,
+    });
+  }, [
+    loadingContext,
+    authLoading,
+    pet?.id,
+    pet?.tenantId,
+    shelter?.id,
+    visitProcedure?.id,
+    user?.role,
+    location.pathname,
+  ]);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setFormError(null);
@@ -123,9 +158,28 @@ export default function NewPetVisitPage() {
       });
 
       toast.success("Visita agendada com sucesso!");
+      track("appointment_created", {
+        flow: "pet_visit",
+        role: user.role,
+        source_page: location.pathname,
+        tenant_id: shelter.tenantId,
+        shelter_id: shelter.id,
+        procedure_id: visitProcedure.id,
+        pet_id: pet.id,
+      });
       navigate("/appointments");
     } catch (error) {
       store.dispatch(clearFeedback());
+      track("appointment_create_failed", {
+        flow: "pet_visit",
+        role: user?.role ?? "anonymous",
+        source_page: location.pathname,
+        tenant_id: shelter.tenantId,
+        shelter_id: shelter.id,
+        procedure_id: visitProcedure.id,
+        pet_id: pet.id,
+        ...apiErrorProps(error),
+      });
       setFormError(resolveApiErrorMessage(error));
     } finally {
       setSubmitting(false);
